@@ -1,0 +1,48 @@
+name: Build and Push src Image to ACR
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  AZURE_CONTAINER_REGISTRY_USERNAME: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
+  AZURE_CONTAINER_REGISTRY_PASSWORD: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+  IMAGE_NAME: chat-app
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create src/.env from ENV secret
+        shell: bash
+        run: |
+          printf '%s' "${ENV_CONTENT}" > src/.env
+        env:
+          ENV_CONTENT: ${{ secrets.ENV }}
+
+      - name: Login to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.AZURE_CONTAINER_REGISTRY }}
+          username: ${{ env.AZURE_CONTAINER_REGISTRY_USERNAME }}
+          password: ${{ env.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+
+      - name: Build and push image (src context only)
+        shell: bash
+        run: |
+          docker build -f src/Dockerfile -t ${AZURE_CONTAINER_REGISTRY}/${IMAGE_NAME}:latest src
+          docker push ${AZURE_CONTAINER_REGISTRY}/${IMAGE_NAME}:latest
+
+      - name: Remove temporary src/.env
+        if: always()
+        shell: bash
+        run: rm -f src/.env
